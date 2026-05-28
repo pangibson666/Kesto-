@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <!-- 移除 user-scalable=no，允許手動縮放 -->
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Kesto 模擬器 V1.92</title>
+<title>Kesto 模擬器 V1.93</title>
 <style>
   body {
     background-color: #121212;
@@ -517,7 +517,7 @@
     let bStr = targetBlueBlocks.map(b => `${b.r},${b.c}`).sort().join('|');
     if (oStr === bStr) {
       document.getElementById('modal-step-text').innerText = `你用了 ${stepCount} 步成功通關！`;
-      document.getElementById('modal-optimal-text').innerText = `AI 參考步數：${cachedOptimalSteps === -1 ? '未知' : cachedOptimalSteps} 步`;
+      document.getElementById('modal-optimal-text').innerText = `挑戰目標：${cachedOptimalSteps === -1 ? '未知' : cachedOptimalSteps} 步`;
       document.getElementById('win-modal').style.display = 'flex';
       saveCurrentLevelToHistory();
     }
@@ -569,7 +569,7 @@
   // 隨機漫步 + 雙向BFS認證機制
   function generateLevel() {
     if(isEditMode) toggleEditMode();
-    document.getElementById('step-counter').innerText = 'AI 運算中...';
+    document.getElementById('step-counter').innerText = '運算中...';
     
     let diff = document.getElementById('difficulty-select').value;
     
@@ -748,7 +748,7 @@
       alert(`⚠️ 注意：起點數量 (${tempStart.length}) 與終點數量 (${tempTarget.length}) 不符，可能無法正常過關。`);
     }
 
-    document.getElementById('step-counter').innerText = 'AI 驗證中...';
+    document.getElementById('step-counter').innerText = '驗證中...';
     
     setTimeout(() => {
       let trueOptimal = findOptimalStepsBiDir(tempStart, tempTarget, tempWalls);
@@ -761,9 +761,9 @@
       resetLevel(); 
       
       if (trueOptimal === -1) {
-        alert("匯入成功！但 AI 評估此地圖可能極度困難或無解，請嘗試挑戰看看！");
+        alert("匯入成功！但此地圖可能極度困難或無解，可嘗試挑戰看看！");
       } else {
-        alert(`匯入成功！AI 參考步數為：${trueOptimal} 步！`);
+        alert(`匯入成功！最佳步數 ≤ ${trueOptimal} 步！`);
       }
     }, 50);
   }

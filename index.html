@@ -3,31 +3,30 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Kesto 模擬器 V1.3</title>
+<title>Kesto 模擬器 V1.4</title>
 <style>
   body {
     background-color: #121212;
     color: #ffffff;
     font-family: sans-serif;
     display: flex;
-    justify-content: center; /* 讓遊戲水平置中 */
-    align-items: center;     /* 讓遊戲垂直置中 */
-    min-height: 100vh;       /* 確保背景填滿整個螢幕高度 */
+    justify-content: center; 
+    align-items: center;     
+    min-height: 100vh;       
     margin: 0;
     padding: 0;
     touch-action: none;
     user-select: none;
-    overflow: hidden;        /* 隱藏縮放後可能產生的滾動條 */
+    overflow: hidden;        
   }
 
-  /* 外層容器樣式 */
   #app-container {
     display: flex;
     flex-direction: column;
     align-items: center;
-    transform-origin: center center; /* 以中心點為縮放基準 */
-    width: 380px;  /* 基礎寬度 */
-    height: 520px; /* 基礎高度 */
+    transform-origin: center center; 
+    width: 380px;  
+    height: 520px; 
   }
 
   .header {
@@ -46,7 +45,7 @@
   .title {
     font-size: 24px;
     font-weight: bold;
-    white-space: nowrap; /* 強制標題與步數不換行 */
+    white-space: nowrap; /* 防止千位數步數時換行 */
   }
   .controls-row {
     display: flex;
@@ -146,7 +145,6 @@
 </head>
 <body>
 
-<!-- app-container 外層包覆 -->
 <div id="app-container">
   <div class="header">
     <div class="top-row">
@@ -229,7 +227,6 @@
   
   let cachedOptimalSteps = 0;
 
-  // 自動調整畫面縮放比例
   function adjustScale() {
     const container = document.getElementById('app-container');
     const baseWidth = 380;  
@@ -331,7 +328,7 @@
     return moved;
   }
 
-  // 核心演算法優化：使用 BigInt 位元棋盤，效率提升 50 倍以上
+  // 二進位 Bitboard 最優解尋路 (用於單次驗證，極速)
   function findOptimalSteps(startBlocks, targetBlocks, currentWalls) {
     const getBigIntKey = (b) => {
       let key = 0n;
@@ -347,7 +344,7 @@
 
     let queue = [{ blocks: cloneBlocks(startBlocks), steps: 0 }];
     let visited = new Set([startKey]);
-    let maxStates = 80000; // 允許探索至 80,000 狀態
+    let maxStates = 40000; 
     let dirs = [[-1,0], [1,0], [0,-1], [0,1]];
 
     while (queue.length > 0) {
@@ -518,20 +515,20 @@
     return blocks.map(b => [b.r - minR, b.c - minC]);
   }
 
+  // ==== 升級版隨機滑動生成演算法：排除短循環無效步數 + 目的地近鄰控制 ====
   function generateLevel() {
     if(isEditMode) toggleEditMode();
     document.getElementById('step-counter').innerText = 'AI 運算中...';
     
     let diff = document.getElementById('difficulty-select').value;
-    // 完美的難度梯度設定！
     let minSteps = 5, maxSteps = 7, numWalls = 4;
     if (diff === 'medium') { minSteps = 8; maxSteps = 13; numWalls = 6; }
-    else if (diff === 'hard') { minSteps = 14; maxSteps = 18; numWalls = 8; } 
+    else if (diff === 'hard') { minSteps = 14; maxSteps = 18; numWalls = 8; }
 
     setTimeout(() => {
-      let maxMapAttempts = 50; 
+      let maxMapAttempts = 300; // 因為新增了美學限制，我們給予充足的嘗試次數
+      let success = false;
       
-      // 定義內部的二進位棋盤轉換函數，確保本地作用域高效存取
       const getBigIntKey = (b) => {
         let key = 0n;
         for (let i = 0; i < b.length; i++) {
@@ -541,6 +538,7 @@
       };
 
       for (let attempt = 0; attempt < maxMapAttempts; attempt++) {
+        // 1. 隨機生成牆壁
         let currentWalls = [];
         while (currentWalls.length < numWalls) {
           let wr = Math.floor(Math.random() * 8);
@@ -548,8 +546,8 @@
           if (!currentWalls.some(w => w[0] === wr && w[1] === wc)) currentWalls.push([wr, wc]);
         }
         
+        // 2. 隨機生成起點形狀與位置
         const currentOffsets = generateRandomHexominoOffsets();
-
         let shapeRows = Math.max(...currentOffsets.map(o => o[0])) + 1;
         let shapeCols = Math.max(...currentOffsets.map(o => o[1])) + 1;
         let sr = Math.floor(Math.random() * (8 - shapeRows + 1));
@@ -565,73 +563,77 @@
         }
         if (!validStart) continue;
 
-        let startKey = getBigIntKey(startBlocks);
-        let queue = [{ blocks: startBlocks, steps: 0 }];
-        let visited = new Set([startKey]);
-        let candidates = [];
-        
-        let nodesSearched = 0;
-        let maxNodes = 80000; // 有了 BigInt，運算 80,000 個狀態僅需數毫秒，保證直達 18 步
+        // 3. 隨機滑動：排除短循環無效步數 (原則 1)
+        let targetBlocks = cloneBlocks(startBlocks);
         let dirs = [[-1,0], [1,0], [0,-1], [0,1]];
+        let movesCount = 0;
+        let walkAttempts = 0;
+        let targetWalkSteps = maxSteps + 4; // 稍微多走幾步以適應捷徑
 
-        while (queue.length > 0 && nodesSearched < maxNodes) {
-          let curr = queue.shift();
-          nodesSearched++;
-          
-          if (curr.steps >= minSteps && curr.steps <= maxSteps) {
-            candidates.push(curr);
-          }
-          
-          if (curr.steps >= maxSteps) continue; 
+        let walkHistory = [getBigIntKey(startBlocks)]; // 軌跡紀錄
 
-          for (let d of dirs) {
-            let nextBlocks = cloneBlocks(curr.blocks);
-            let moved = moveGroup(nextBlocks, d[0], d[1], currentWalls);
-            if (moved) {
-              let key = getBigIntKey(nextBlocks);
-              if (!visited.has(key)) {
-                visited.add(key);
-                queue.push({ blocks: nextBlocks, steps: curr.steps + 1 });
-              }
+        while (movesCount < targetWalkSteps && walkAttempts < 150) {
+          let d = dirs[Math.floor(Math.random() * 4)];
+          let testBlocks = cloneBlocks(targetBlocks);
+          
+          if (moveGroup(testBlocks, d[0], d[1], currentWalls)) {
+            let key = getBigIntKey(testBlocks);
+            
+            // 原則 1：檢查最近 5 步內是否走回重複的狀態，如果是則視為「無效來回」，拒絕此步
+            let recentStates = walkHistory.slice(-5);
+            if (!recentStates.includes(key)) {
+              targetBlocks = testBlocks;
+              walkHistory.push(key);
+              movesCount++;
             }
           }
+          walkAttempts++;
         }
 
-        if (candidates.length > 0) {
-          for (let i = candidates.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+        // 4. 起終點不重疊檢查
+        let hasOverlap = false;
+        const startCoords = new Set(startBlocks.map(b => `${b.r},${b.c}`));
+        for (let tb of targetBlocks) {
+          if (startCoords.has(`${tb.r},${tb.c}`)) {
+            hasOverlap = true;
+            break;
           }
+        }
+        if (hasOverlap) continue;
 
-          let success = false;
-          for (let targetChoice of candidates) {
-            let hasOverlap = false;
-            const startCoords = new Set(startBlocks.map(b => `${b.r},${b.c}`));
-            
-            for (let tb of targetChoice.blocks) {
-              if (startCoords.has(`${tb.r},${tb.c}`)) {
-                hasOverlap = true; 
-                break;
-              }
-            }
-
-            if (!hasOverlap) {
-              initialOrangeBlocks = cloneBlocks(startBlocks);
-              targetBlueBlocks = cloneBlocks(targetChoice.blocks); 
-              initialWalls = currentWalls;
-              walls = [...currentWalls];
-              cachedOptimalSteps = targetChoice.steps;
-              resetLevel();
-              success = true;
-              break; 
-            }
+        // 5. 原則 2：限制目的地不能離起點太遠 (計算起點與終點的平均曼哈頓距離)
+        let totalDist = 0;
+        for (let sa of startBlocks) {
+          let minDist = Infinity;
+          for (let tb of targetBlocks) {
+            let d = Math.abs(sa.r - tb.r) + Math.abs(sa.c - tb.c);
+            if (d < minDist) minDist = d;
           }
-          if (success) return; 
+          totalDist += minDist;
+        }
+        let avgDist = totalDist / startBlocks.length;
+        // 根據難度調配距離限制 (難度高稍微放寬，但依然限制在局部重組範圍)
+        let maxAvgDist = diff === 'easy' ? 2.0 : (diff === 'medium' ? 2.5 : 3.0);
+        if (avgDist > maxAvgDist) continue; 
+
+        // 6. 驗證最少步數
+        let optimal = findOptimalSteps(startBlocks, targetBlocks, currentWalls);
+        if (optimal >= minSteps && optimal <= maxSteps) {
+          initialOrangeBlocks = cloneBlocks(startBlocks);
+          targetBlueBlocks = cloneBlocks(targetBlocks); 
+          initialWalls = currentWalls;
+          walls = [...currentWalls];
+          cachedOptimalSteps = optimal;
+          resetLevel();
+          success = true;
+          break;
         }
       }
       
-      alert('地圖生成條件過於嚴格，AI 重新調配中，請按換一關！');
-      document.getElementById('step-counter').innerText = '請按換一關';
+      if (!success) {
+        alert('地圖生成條件過於嚴格，AI 重新調配中，請按換一關！');
+        document.getElementById('step-counter').innerText = '請按換一關';
+      }
     }, 50);
   }
 

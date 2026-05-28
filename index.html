@@ -2,8 +2,9 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Kesto 模擬器 V1.82</title>
+<!-- 移除 user-scalable=no，允許手動縮放 -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kesto 模擬器 V1.92</title>
 <style>
   body {
     background-color: #121212;
@@ -15,9 +16,9 @@
     min-height: 100vh;       
     margin: 0;
     padding: 0;
-    touch-action: none;
+    touch-action: auto; /* 允許手動縮放手勢 */
     user-select: none;
-    overflow: hidden;        
+    overflow: auto; /* 允許大圖時出現滾動條 */
   }
 
   #app-container {
@@ -26,7 +27,7 @@
     align-items: center;
     transform-origin: center center; 
     width: 380px;  
-    height: 550px; /* 微調高度以容納複製/匯入按鈕 */
+    height: 560px; /* 基礎高度 */
   }
 
   .header {
@@ -65,13 +66,15 @@
   button:active { background-color: #555; }
   select { outline: none; }
   
+  /* 編輯工具欄：移至地圖下方，微調邊距 */
   #editor-toolbar {
     display: none;
     background-color: #222;
     padding: 8px;
     border-radius: 6px;
     width: 352px;
-    margin-bottom: 10px;
+    margin-top: 10px;
+    margin-bottom: 5px;
     justify-content: space-between;
     align-items: center;
     border: 1px dashed #fca33d;
@@ -141,11 +144,21 @@
   .modal-buttons button { padding: 10px 20px; font-size: 16px; font-weight: bold; }
   .btn-replay { background-color: #555; color: white; }
   .btn-next { background-color: #4287f5; color: white; }
+
+  /* 頁尾複製/匯入按鈕容器 */
+  .footer-row {
+    display: flex;
+    gap: 5px;
+    width: 368px;
+    justify-content: space-between;
+    margin-top: 10px;
+  }
 </style>
 </head>
 <body>
 
 <div id="app-container">
+  <!-- 上方控制列（乾淨相連） -->
   <div class="header">
     <div class="top-row">
       <div class="title">Kesto <span id="step-counter" style="font-size:16px; color:#aaa; margin-left:10px;">0 步</span></div>
@@ -174,25 +187,9 @@
         <button id="btn-next-level" onclick="triggerNextLevel()" style="background-color:#4287f5;">換一關</button>
       </div>
     </div>
-    <!-- 新增：地圖分享控制列 -->
-    <div style="display:flex; gap:5px; width:100%; justify-content:space-between; margin-top:2px;">
-      <button onclick="copyMapText()" style="flex:1; background-color:#3a86c8; padding: 4px 6px; font-size:12px;">📋 複製地圖代碼</button>
-      <button onclick="importMapText()" style="flex:1; background-color:#555; padding: 4px 6px; font-size:12px;">📥 匯入地圖代碼</button>
-    </div>
   </div>
 
-  <div id="editor-toolbar">
-    <div class="tool-group">
-      <button id="btn-tool-wall" class="tool-btn active" onclick="setTool('wall')">牆壁</button>
-      <button id="btn-tool-start" class="tool-btn" onclick="setTool('start')">橘起點</button>
-      <button id="btn-tool-target" class="tool-btn" onclick="setTool('target')">藍終點</button>
-    </div>
-    <div style="display:flex; gap:4px;">
-      <button onclick="clearEditor()" style="background-color:#a63d3d;">清空</button>
-      <button onclick="finishEditing()" style="background-color:#3da65c; font-weight:bold;">完成</button>
-    </div>
-  </div>
-
+  <!-- 中間：地圖（位置不再變動） -->
   <div id="game-board">
     <div id="win-modal" class="modal">
       <div class="modal-content">
@@ -205,6 +202,25 @@
         </div>
       </div>
     </div>
+  </div>
+
+  <!-- 下方：設計工具欄（隱藏/顯示時，不影響上方地圖的位置） -->
+  <div id="editor-toolbar">
+    <div class="tool-group">
+      <button id="btn-tool-wall" class="tool-btn active" onclick="setTool('wall')">牆壁</button>
+      <button id="btn-tool-start" class="tool-btn" onclick="setTool('start')">橘起點</button>
+      <button id="btn-tool-target" class="tool-btn" onclick="setTool('target')">藍終點</button>
+    </div>
+    <div style="display:flex; gap:4px;">
+      <button onclick="clearEditor()" style="background-color:#a63d3d;">清空</button>
+      <button onclick="finishEditing()" style="background-color:#3da65c; font-weight:bold;">完成</button>
+    </div>
+  </div>
+
+  <!-- 最下方：地圖分享控制列 -->
+  <div class="footer-row">
+    <button onclick="copyMapText()" style="flex:1; background-color:#3a86c8; padding: 6px; font-size:12px;">📋 複製地圖代碼</button>
+    <button onclick="importMapText()" style="flex:1; background-color:#555; padding: 6px; font-size:12px;">📥 匯入地圖代碼</button>
   </div>
 </div>
 
@@ -232,18 +248,23 @@
   
   let cachedOptimalSteps = 0;
 
+  // 優化後的縮放邏輯
   function adjustScale() {
     const container = document.getElementById('app-container');
     const baseWidth = 380;  
-    const baseHeight = 550; 
+    const baseHeight = 560; 
     
-    const scaleX = window.innerWidth / baseWidth;
-    const scaleY = window.innerHeight / baseHeight;
-    let scale = Math.min(scaleX, scaleY) * 0.95;
-    
-    scale = Math.min(scale, 2.5); 
-    
-    container.style.transform = `scale(${scale})`;
+    // 如果是桌面端（寬度大於 500 且高度大於 650）
+    if (window.innerWidth > 500 && window.innerHeight > 650) {
+      // 保持固定 1.5 倍縮放，這時瀏覽器原生的縮放百分比（Ctrl + 滾輪）就能正常運作！
+      container.style.transform = `scale(1.5)`;
+    } else {
+      // 行動端才進行完美的自適應貼合
+      const scaleX = window.innerWidth / baseWidth;
+      const scaleY = window.innerHeight / baseHeight;
+      let scale = Math.min(scaleX, scaleY) * 0.95;
+      container.style.transform = `scale(${scale})`;
+    }
   }
 
   window.addEventListener('resize', adjustScale);
@@ -333,7 +354,7 @@
     return moved;
   }
 
-  // 極速版：雙向廣度優先搜尋 (Bidirectional BFS)
+  // 雙向廣度優先搜尋 (Bidirectional BFS)
   function findOptimalStepsBiDir(startBlocks, targetBlocks, currentWalls) {
     const getBigIntKey = (b) => {
       let key = 0n;
@@ -360,7 +381,7 @@
     let dirs = [[-1,0], [1,0], [0,-1], [0,1]];
 
     while (headA < queueA.length && headB < queueB.length && nodes < maxNodes) {
-      // 1. 擴展 Queue A
+      // 1. Queue A
       let currA = queueA[headA++];
       nodes++;
       if (currA.steps < 15) { 
@@ -377,7 +398,7 @@
         }
       }
 
-      // 2. 擴展 Queue B
+      // 2. Queue B
       let currB = queueB[headB++];
       nodes++;
       if (currB.steps < 15) {
@@ -650,42 +671,32 @@
     }, 50);
   }
 
-  // ==========================================
-  // 新增功能：將當前地圖資料複製成 8x8 代碼字串
-  // 0=空格, 1=障礙物, 2=方塊(橘起點), 3=目的地(藍終點)
-  // ==========================================
+  // 將當前地圖資料複製成 8x8 代碼字串
   function copyMapText() {
     if (initialOrangeBlocks.length === 0 && targetBlueBlocks.length === 0 && initialWalls.length === 0) {
       alert("目前沒有可導出的地圖資料！");
       return;
     }
 
-    // 初始化 8x8 的二維陣列
     let grid = Array.from({ length: 8 }, () => Array(8).fill(0));
 
-    // 1. 填入牆壁 (1)
     initialWalls.forEach(([r, c]) => {
       if (r >= 0 && r < 8 && c >= 0 && c < 8) grid[r][c] = 1;
     });
 
-    // 2. 填入藍終點 (3)
     targetBlueBlocks.forEach(b => {
       if (b.r >= 0 && b.r < 8 && b.c >= 0 && b.c < 8) grid[b.r][b.c] = 3;
     });
 
-    // 3. 填入橘起點 (2) -> 起點蓋在終點上方
     initialOrangeBlocks.forEach(b => {
       if (b.r >= 0 && b.r < 8 && b.c >= 0 && b.c < 8) grid[b.r][b.c] = 2;
     });
 
-    // 組合文字
     let mapStr = grid.map(row => row.join('')).join('\n');
 
-    // 寫入剪貼簿
     navigator.clipboard.writeText(mapStr).then(() => {
       alert("地圖代碼已成功複製到剪貼簿！\n\n" + mapStr);
     }).catch(() => {
-      // 備用複製方案 (相容不支援 navigator.clipboard 的瀏覽器)
       let textArea = document.createElement("textarea");
       textArea.value = mapStr;
       document.body.appendChild(textArea);
@@ -700,14 +711,11 @@
     });
   }
 
-  // ==========================================
-  // 新增功能：匯入 8x8 地圖代碼字串並進行 AI 步數驗證
-  // ==========================================
+  // 匯入 8x8 地圖代碼字串並進行 AI 步數驗證
   function importMapText() {
     let input = prompt("請貼上 8x8 地圖代碼 (共 64 位數字)：");
     if (!input) return;
 
-    // 清除空白字元及換行
     let cleaned = input.replace(/\s+/g, '');
     if (cleaned.length !== 64 || !/^[0-3]+$/.test(cleaned)) {
       alert("匯入失敗！請確保代碼是 8x8 共 64 位數（只能含有數字 0、1、2、3）。");
@@ -742,7 +750,6 @@
 
     document.getElementById('step-counter').innerText = 'AI 驗證中...';
     
-    // 背景執行雙向快速步數演算
     setTimeout(() => {
       let trueOptimal = findOptimalStepsBiDir(tempStart, tempTarget, tempWalls);
       
@@ -751,7 +758,7 @@
       targetBlueBlocks = tempTarget;
       cachedOptimalSteps = trueOptimal;
 
-      resetLevel(); // 渲染地圖
+      resetLevel(); 
       
       if (trueOptimal === -1) {
         alert("匯入成功！但 AI 評估此地圖可能極度困難或無解，請嘗試挑戰看看！");
@@ -814,61 +821,4 @@
   }
 
   function clearEditor() {
-    initialWalls = []; initialOrangeBlocks = []; targetBlueBlocks = [];
-    resetLevel();
-  }
-
-  function finishEditing() {
-    if (initialOrangeBlocks.length === 0 || targetBlueBlocks.length === 0) {
-      alert('必須至少放置一個橘起點和藍終點！'); return;
-    }
-    if (initialOrangeBlocks.length !== targetBlueBlocks.length) {
-      alert(`數量不匹配！你放了 ${initialOrangeBlocks.length} 個起點，但有 ${targetBlueBlocks.length} 個終點。`); return;
-    }
-    document.getElementById('step-counter').innerText = 'AI 驗證中...';
-    setTimeout(() => {
-      let trueOptimal = findOptimalStepsBiDir(initialOrangeBlocks, targetBlueBlocks, initialWalls);
-      if (trueOptimal === -1) {
-        alert('⚠️ 提示：此自訂關卡極度困難或無解，已為你保留地圖，請嘗試挑戰！');
-        cachedOptimalSteps = -1;
-      } else {
-        alert(`驗證成功！AI 參考步數：${trueOptimal} 步！`);
-        cachedOptimalSteps = trueOptimal; 
-      }
-      toggleEditMode();
-    }, 50);
-  }
-
-  window.addEventListener('keydown', (e) => {
-    if (['ArrowUp', 'w', 'W'].includes(e.key)) { move(-1, 0); e.preventDefault(); }
-    if (['ArrowDown', 's', 'S'].includes(e.key)) { move(1, 0); e.preventDefault(); }
-    if (['ArrowLeft', 'a', 'A'].includes(e.key)) { move(0, -1); e.preventDefault(); }
-    if (['ArrowRight', 'd', 'D'].includes(e.key)) { move(0, 1); e.preventDefault(); }
-    if (['z', 'Z'].includes(e.key)) undo();
-    if (['r', 'R'].includes(e.key)) resetLevel();
-  });
-
-  let touchStartX = 0, touchStartY = 0;
-  document.addEventListener('touchstart', e => {
-    touchStartX = e.changedTouches[0].screenX;
-    touchStartY = e.changedTouches[0].screenY;
-  }, {passive: false});
-
-  document.addEventListener('touchend', e => {
-    let dx = e.changedTouches[0].screenX - touchStartX;
-    let dy = e.changedTouches[0].screenY - touchStartY;
-    if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 30) move(0, dx > 0 ? 1 : -1);
-    else if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 30) move(dy > 0 ? 1 : -1, 0);
-  }, {passive: false});
-
-  document.addEventListener('touchmove', e => {
-    if(!['BUTTON', 'SELECT'].includes(e.target.tagName)) e.preventDefault();
-  }, {passive: false});
-
-  window.onload = () => {
-    initBoard();
-    adjustScale();
-  };
-</script>
-</body>
-</html>
+    initialWalls = []; initialOrangeBloc

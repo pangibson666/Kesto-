@@ -85,6 +85,7 @@
     gap: 32px;
     max-width: 1200px;
     width: 100%;
+    transition: all 0.3s ease;
   }
 
   .panel {
@@ -248,21 +249,15 @@
   .modal-input:focus { border-color: var(--accent-primary); }
   .modal-buttons { display: flex; justify-content: flex-end; gap: 12px; margin-top: 8px; }
 
+  /* 手機版排版優化：移除所有強制懸浮，改為自然上下排列 */
   @media (max-width: 1024px) {
     .scale-wrapper { transform: none !important; padding: 20px 10px; align-items: flex-start; }
-    .app-container { flex-direction: column; align-items: center; }
+    .app-container { flex-direction: column; align-items: center; gap: 20px; }
     .side-panel, .center-panel { width: 100%; max-width: 416px; flex: auto; }
-    .left-panel { order: 2; }
+    /* 調整手機版區塊順序：中央盤面優先 -> 左側工具 -> 右側遊玩控制 */
     .center-panel { order: 1; }
+    .left-panel { order: 2; }
     .right-panel { order: 3; }
-    
-    .game-controls {
-      position: fixed; bottom: max(20px, env(safe-area-inset-bottom)); left: 50%;
-      transform: translateX(-50%); width: calc(100% - 40px); max-width: 416px;
-      z-index: 1000; background-color: var(--bg-surface); box-shadow: 0 12px 40px rgba(0, 0, 0, 0.85); 
-      border: 1px solid var(--border-subtle); padding: 16px; margin: 0;
-    }
-    body:has(.game-controls[style*="flex"]) { padding-bottom: 250px; }
   }
 </style>
 </head>
@@ -679,6 +674,7 @@ function enterPlayMode() {
     currentStepIndex = -1;
     
     lockBoard(); 
+    document.querySelector('.left-panel').style.display = 'none'; // 隱藏編輯工具列
     document.getElementById('edit-instructions').style.display = 'none';
     document.getElementById('play-panel').style.display = 'flex';
     updateHistoryUI();
@@ -694,6 +690,7 @@ function exitPlayMode(force = false) {
     isPlayMode = false;
     boardData.start = cloneBlocks(playInitialState);
     
+    document.querySelector('.left-panel').style.display = 'flex'; // 恢復編輯工具列
     document.getElementById('play-panel').style.display = 'none';
     document.getElementById('edit-instructions').style.display = 'flex';
     
@@ -946,6 +943,7 @@ window.onload = () => {
     
     if (isPlayMode) {
         lockBoard();
+        document.querySelector('.left-panel').style.display = 'none'; // 重整頁面時如果是在遊玩模式，自動隱藏左側工具列
         document.getElementById('edit-instructions').style.display = 'none';
         document.getElementById('play-panel').style.display = 'flex';
         updateHistoryUI();

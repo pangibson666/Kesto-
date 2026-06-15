@@ -184,12 +184,13 @@
   .control-row { display: flex; justify-content: space-between; align-items: center; gap: 4px; }
   .control-indicator { font-family: monospace; font-size: 14px; color: var(--text-primary); min-width: 50px; text-align: center; }
 
-  /* 歷史足跡面板 UI */
+  /* 歷史足跡面板 UI 修正 */
   .path-container {
     display: grid; 
     grid-template-columns: repeat(5, 1fr); 
     gap: 6px; 
-    max-height: 160px; 
+    height: 140px; /* 【修正】固定高度，避免隨著步數增加撐開版面導致排版跳動 */
+    position: relative; /* 【修正】作為內部 offsetTop 的定位基準 */
     overflow-y: auto; 
     background: var(--bg-inset); 
     padding: 8px; 
@@ -249,12 +250,11 @@
   .modal-input:focus { border-color: var(--accent-primary); }
   .modal-buttons { display: flex; justify-content: flex-end; gap: 12px; margin-top: 8px; }
 
-  /* 手機版排版優化：移除所有強制懸浮，改為自然上下排列 */
+  /* 手機版排版優化 */
   @media (max-width: 1024px) {
     .scale-wrapper { transform: none !important; padding: 20px 10px; align-items: flex-start; }
     .app-container { flex-direction: column; align-items: center; gap: 20px; }
     .side-panel, .center-panel { width: 100%; max-width: 416px; flex: auto; }
-    /* 調整手機版區塊順序：中央盤面優先 -> 左側工具 -> 右側遊玩控制 */
     .center-panel { order: 1; }
     .left-panel { order: 2; }
     .right-panel { order: 3; }
@@ -674,7 +674,7 @@ function enterPlayMode() {
     currentStepIndex = -1;
     
     lockBoard(); 
-    document.querySelector('.left-panel').style.display = 'none'; // 隱藏編輯工具列
+    document.querySelector('.left-panel').style.display = 'none'; 
     document.getElementById('edit-instructions').style.display = 'none';
     document.getElementById('play-panel').style.display = 'flex';
     updateHistoryUI();
@@ -690,7 +690,7 @@ function exitPlayMode(force = false) {
     isPlayMode = false;
     boardData.start = cloneBlocks(playInitialState);
     
-    document.querySelector('.left-panel').style.display = 'flex'; // 恢復編輯工具列
+    document.querySelector('.left-panel').style.display = 'flex'; 
     document.getElementById('play-panel').style.display = 'none';
     document.getElementById('edit-instructions').style.display = 'flex';
     
@@ -786,8 +786,13 @@ function updateHistoryUI() {
         container.appendChild(chip);
     });
     
+    // 【修正】這裡不用原生的 scrollIntoView()，因為它會強制觸發外部網頁捲動
+    // 改為計算相對位置，讓捲軸只在容器內部平滑移動
     let activeChip = container.querySelector('.active');
-    if (activeChip) activeChip.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    if (activeChip) {
+        let scrollPos = activeChip.offsetTop - (container.clientHeight / 2) + (activeChip.clientHeight / 2);
+        container.scrollTo({ top: Math.max(0, scrollPos), behavior: 'smooth' });
+    }
 
     let indicator = document.getElementById('step-indicator');
     if (indicator) {
@@ -943,7 +948,7 @@ window.onload = () => {
     
     if (isPlayMode) {
         lockBoard();
-        document.querySelector('.left-panel').style.display = 'none'; // 重整頁面時如果是在遊玩模式，自動隱藏左側工具列
+        document.querySelector('.left-panel').style.display = 'none'; 
         document.getElementById('edit-instructions').style.display = 'none';
         document.getElementById('play-panel').style.display = 'flex';
         updateHistoryUI();

@@ -121,6 +121,7 @@
     display: grid; grid-template-columns: repeat(8, 40px); grid-template-rows: repeat(8, 40px);
     gap: 4px; background-color: var(--bg-inset); padding: 8px; border-radius: 8px;
     border: 1px solid var(--border-subtle); position: relative; touch-action: none;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
   }
   
   #game-board.locked { border-color: var(--border-muted); }
@@ -182,15 +183,15 @@
     padding: 0; border: none; margin-top: 8px; flex: 1;
   }
   .control-row { display: flex; justify-content: space-between; align-items: center; gap: 4px; }
-  .control-indicator { font-family: monospace; font-size: 14px; color: var(--text-primary); min-width: 50px; text-align: center; }
+  .control-indicator { font-family: monospace; font-size: 14px; color: var(--text-primary); min-width: 50px; text-align: center; transition: color 0.3s ease; }
 
   /* 歷史足跡面板 UI 修正 */
   .path-container {
     display: grid; 
     grid-template-columns: repeat(5, 1fr); 
     gap: 6px; 
-    height: 140px; /* 【修正】固定高度，避免隨著步數增加撐開版面導致排版跳動 */
-    position: relative; /* 【修正】作為內部 offsetTop 的定位基準 */
+    height: 140px; 
+    position: relative; 
     overflow-y: auto; 
     background: var(--bg-inset); 
     padding: 8px; 
@@ -653,6 +654,12 @@ function moveGroup(blocks, dr, dc, walls) {
 // ==========================================
 // 3. 遊玩模式 (Play Mode)
 // ==========================================
+// 判斷目前盤面是否過關
+function checkCurrentWin() {
+    if (boardData.start.length === 0 || boardData.target.length === 0) return false;
+    return boardData.start.every(b => boardData.target.some(t => t[0]===b[0] && t[1]===b[1]));
+}
+
 function togglePlayMode() {
     if (isPlayMode) {
         customConfirm("Exit Play Mode?", "Your current play progress will be lost.", () => exitPlayMode());
@@ -677,6 +684,8 @@ function enterPlayMode() {
     document.querySelector('.left-panel').style.display = 'none'; 
     document.getElementById('edit-instructions').style.display = 'none';
     document.getElementById('play-panel').style.display = 'flex';
+    
+    renderPlayBoard();
     updateHistoryUI();
     
     let btn = document.getElementById('btn-play-mode');
@@ -698,6 +707,11 @@ function exitPlayMode(force = false) {
     btn.innerText = "Play Map";
     btn.classList.replace('btn-danger', 'btn-primary');
     
+    // 移除發光特效
+    const board = document.getElementById('game-board');
+    board.style.borderColor = '';
+    board.style.boxShadow = '';
+
     unlockBoard(); 
     drawBoard();
     if(stateLoaded) saveState();
@@ -705,6 +719,8 @@ function exitPlayMode(force = false) {
 
 async function playerMove(dr, dc, moveChar) {
     if (!isPlayMode || isPrompting) return;
+    if (checkCurrentWin()) return; // 已經過關則鎖定盤面，禁止移動
+    
     stopHistoryPlay(); 
     
     let current = cloneBlocks(boardData.start);
@@ -786,8 +802,6 @@ function updateHistoryUI() {
         container.appendChild(chip);
     });
     
-    // 【修正】這裡不用原生的 scrollIntoView()，因為它會強制觸發外部網頁捲動
-    // 改為計算相對位置，讓捲軸只在容器內部平滑移動
     let activeChip = container.querySelector('.active');
     if (activeChip) {
         let scrollPos = activeChip.offsetTop - (container.clientHeight / 2) + (activeChip.clientHeight / 2);
@@ -796,7 +810,15 @@ function updateHistoryUI() {
 
     let indicator = document.getElementById('step-indicator');
     if (indicator) {
-        indicator.innerText = `${currentStepIndex + 1} / ${playHistory.length}`;
+        if (checkCurrentWin()) {
+            indicator.innerText = `WIN / ${playHistory.length}`;
+            indicator.style.color = 'var(--accent-primary)';
+            indicator.style.fontWeight = 'bold';
+        } else {
+            indicator.innerText = `${currentStepIndex + 1} / ${playHistory.length}`;
+            indicator.style.color = 'var(--text-primary)';
+            indicator.style.fontWeight = 'normal';
+        }
     }
 }
 
@@ -815,14 +837,23 @@ function renderPlayBoard() {
             else { el.classList.remove('on-target'); }
         }
     });
+
+    // 過關狀態視覺回饋 (盤面發光)
+    const board = document.getElementById('game-board');
+    if (isPlayMode && checkCurrentWin()) {
+        board.style.borderColor = 'var(--accent-primary)';
+        board.style.boxShadow = '0 0 20px rgba(95, 168, 235, 0.3)';
+    } else {
+        board.style.borderColor = '';
+        board.style.boxShadow = '';
+    }
 }
 
 function checkWin() {
-    let win = boardData.start.every(b => boardData.target.some(t => t[0]===b[0] && t[1]===b[1]));
-    if (win) {
+    if (checkCurrentWin()) {
         let path = playHistory.map(h => h.move).join(' → ');
         setTimeout(() => {
-            customAlert("Puzzle Solved!", `Congratulations! You solved it in ${playHistory.length} steps.\n\nPath:\n${path}`);
+            customAlert("Puzzle Solved!", `Congratulations! You solved it in ${playHistory.length} steps.\n\nPath:\n${path}\n\nTip: You can use the Undo (<) button or click a previous step in the history to unlock the board and explore other paths!`);
         }, globalAnimSpeed + 50);
     }
 }
@@ -951,11 +982,11 @@ window.onload = () => {
         document.querySelector('.left-panel').style.display = 'none'; 
         document.getElementById('edit-instructions').style.display = 'none';
         document.getElementById('play-panel').style.display = 'flex';
+        renderPlayBoard();
         updateHistoryUI();
         let btn = document.getElementById('btn-play-mode');
         btn.innerText = "Exit Play Mode";
         btn.classList.replace('btn-primary', 'btn-danger');
-        renderPlayBoard();
     }
 };
 </script>

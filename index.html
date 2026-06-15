@@ -62,7 +62,7 @@
     align-items: center; 
     min-height: 100vh;
     overflow-x: hidden;
-    user-select: none;
+    user-select: none; /* 全局禁止反白選取 */
   }
 
   .scale-wrapper {
@@ -185,7 +185,7 @@
   .control-row { display: flex; justify-content: space-between; align-items: center; gap: 4px; }
   .control-indicator { font-family: monospace; font-size: 14px; color: var(--text-primary); min-width: 50px; text-align: center; transition: color 0.3s ease; }
 
-  /* 歷史足跡面板 UI 修正 */
+  /* 歷史足跡面板 UI */
   .path-container {
     display: grid; 
     grid-template-columns: repeat(5, 1fr); 
@@ -243,7 +243,19 @@
   }
   .modal-overlay.active .modal-box { transform: translateY(0); }
   .modal-title { font-weight: 600; font-size: 16px; color: var(--text-primary); }
-  .modal-msg { font-size: 14px; color: var(--text-secondary); line-height: 1.5; word-wrap: break-word; white-space: pre-wrap; }
+  
+  .modal-msg { 
+    font-size: 14px; 
+    color: var(--text-secondary); 
+    line-height: 1.5; 
+    word-wrap: break-word; 
+    white-space: pre-wrap; 
+    
+    /* 允許文字反白選取與複製 */
+    user-select: text;
+    -webkit-user-select: text;
+  }
+  
   .modal-input {
     background: var(--bg-inset); border: 1px solid var(--border-subtle);
     color: var(--text-primary); padding: 10px; border-radius: 6px; width: 100%; outline: none; font-family: monospace;
@@ -810,12 +822,12 @@ function updateHistoryUI() {
 
     let indicator = document.getElementById('step-indicator');
     if (indicator) {
+        // 更新顯示邏輯：始終顯示 步數/步數，過關時僅變色加粗
+        indicator.innerText = `${currentStepIndex + 1} / ${playHistory.length}`;
         if (checkCurrentWin()) {
-            indicator.innerText = `WIN / ${playHistory.length}`;
             indicator.style.color = 'var(--accent-primary)';
             indicator.style.fontWeight = 'bold';
         } else {
-            indicator.innerText = `${currentStepIndex + 1} / ${playHistory.length}`;
             indicator.style.color = 'var(--text-primary)';
             indicator.style.fontWeight = 'normal';
         }
